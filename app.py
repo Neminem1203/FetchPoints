@@ -6,6 +6,9 @@ cluster = pymongo.MongoClient(uri)
 db = cluster["Fetch"]
 point_collection = db["points"]
 
+def chronological_points_list(query=None):
+    return point_collection.find(query).sort("timestamp")
+
 def use_points(amount, payer=None):
     '''
     attempt to use amount of points
@@ -16,10 +19,35 @@ def use_points(amount, payer=None):
     query = None
     if payer:
         query = {'payer':payer}
-    list_of_points = point_collection.find(query)
-    for i in list_of_points:
-        print(i)
-    return
+    list_of_points = chronological_points_list(query)# list of points in timestamp order
+    transaction_list = []                           # list of transactions we will be using
+    remaining = amount                              # used to check if we can pay in full
+    paid_in_full = False                            # boolean of whether there's enough points
+    for transaction in list_of_points:
+        transaction_list.append(transaction)
+        points = transaction["points"]
+        if remaining > points:
+            remaining -= points
+        else:
+            paid_in_full = True
+            break
+    # Confirmed we have enough points to pay in full
+    if paid_in_full:
+        return_list = []
+        for transaction in transaction_list[:-1]:
+            payer = transaction["payer"]
+            id = transaction["_id"]
+            point_collection.update_one({"_id": id}, {"$set": {"points": 0}}, upsert=True)
+            return_list.append({payer: 0})
+        last_id = transaction_list[-1]["_id"]
+        last_payer = transaction_list[-1]["payer"]
+        new_points = transaction_list[-1]["points"] - remaining
+        point_collection.update_one({"_id": last_id}, {"$set": {"points": new_points}}, upsert=True)
+        return_list.append({last_payer: new_points})
+        print("Paid for with", return_list)
+        return return_list
+    else:
+        print("Not Enough Points. Missing", remaining,"points")
 
 def give_points(amount, payer, timestamp=datetime.datetime.now()):
     '''
@@ -38,7 +66,7 @@ def get_points():
     :return: dictionary of payers and points
     '''
     payer_points = {}
-    points_list = point_collection.find().sort("timestamp")
+    points_list = chronological_points_list()
     for points in points_list:
         payer = points["payer"]
         amount = points["points"]
@@ -85,9 +113,9 @@ if __name__ == "__main__":
         {"payer": "MILLER COORS", "points": 10000, "timestamp": "2020-11-01T14:00:00Z", },
         {"payer": "DANNON", "points": 300, "timestamp": "2020-10-31T10:00:00Z", },
     ]
-    multitransactions(transaction_history)
+    # multitransactions(transaction_history)
 
     print(get_points())
-    use_points(300, "omg")
-    print()
-    use_points(500)
+    use_points(300, "unknown_user")
+    use_points(5100, "lol")
+    use_points(5500)
