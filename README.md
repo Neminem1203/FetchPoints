@@ -20,7 +20,7 @@ FetchPoints uses a number of open source projects to work properly:
 
 ## Installation
 
-Fetch requires [Node.js](https://nodejs.org/) v10+ to run.
+FetchPoints requires Flask and PyMongo to run.
 
 Install the dependencies and start the server.
 
