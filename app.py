@@ -16,38 +16,39 @@ def use_points(amount, payer=None):
     :param payer: if there's a specific user you want to take it from. default to None
     :return: list of points used from each payer
     '''
-    query = None
-    if payer:
-        query = {'payer':payer}
-    list_of_points = chronological_points_list(query)# list of points in timestamp order
+    query = {'payer':payer} if payer else None      # used for querying database
+    points_list = chronological_points_list(query)  # list of points in timestamp order
     transaction_list = []                           # list of transactions we will be using
     remaining = amount                              # used to check if we can pay in full
     paid_in_full = False                            # boolean of whether there's enough points
-    for transaction in list_of_points:
+
+    for transaction in points_list:
         transaction_list.append(transaction)
         points = transaction["points"]
         if remaining > points:
             remaining -= points
-        else:
+        else: # remaining is less than or eq points, so we know that we have enough points to pay
             paid_in_full = True
             break
+
     # Confirmed we have enough points to pay in full
     if paid_in_full:
         return_list = []
         for transaction in transaction_list[:-1]:
             payer = transaction["payer"]
             id = transaction["_id"]
+            paid = transaction["points"]*-1
             point_collection.update_one({"_id": id}, {"$set": {"points": 0}}, upsert=True)
-            return_list.append({payer: 0})
+            return_list.append({payer: paid})
         last_id = transaction_list[-1]["_id"]
         last_payer = transaction_list[-1]["payer"]
         new_points = transaction_list[-1]["points"] - remaining
         point_collection.update_one({"_id": last_id}, {"$set": {"points": new_points}}, upsert=True)
-        return_list.append({last_payer: new_points})
-        print("Paid for with", return_list)
+        return_list.append({last_payer: remaining * -1})
+        # print("Paid for with", return_list)
         return return_list
     else:
-        print("Not Enough Points. Missing", remaining,"points")
+        return [{"error": "Not Enough Points. Missing "+ str(remaining)+ " points"}]
 
 def give_points(amount, payer, timestamp=datetime.datetime.now()):
     '''
@@ -115,7 +116,12 @@ if __name__ == "__main__":
     ]
     # multitransactions(transaction_history)
 
-    print(get_points())
-    use_points(300, "unknown_user")
-    use_points(5100, "lol")
-    use_points(5500)
+    # print(get_points())
+    test_cases = [[300, "unknown_user"], [999900, "lol"], [5500]]
+    for test in test_cases:
+        amount = test[0]
+        user = None
+        if len(test) == 2:
+            user = test[1]
+        print(amount, user)
+        print(use_points(amount, user))
