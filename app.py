@@ -3,6 +3,7 @@ import datetime
 from flask import Flask, request, json
 import requests
 
+debug_mode = True
 # MONGODB
 reset_db = True                     # development purposes ONLY
 uri = "mongodb+srv://admin:7kKFyf3teMtazG8@testcluster.jsoah.mongodb.net/myFirstDatabase?retryWrites=true&w=majority"
@@ -26,12 +27,14 @@ def spend_points(amount, payer=None):
     query = {'payer':payer} if payer else None      # used for querying database
     points_list = chronological_points_list(query)  # list of points in timestamp order
     transaction_list = []                           # list of transactions we will be using
-    remaining = amount                              # used to check if we can pay in full
+    remaining = int(amount)                         # used to check if we can pay in full
     paid_in_full = False                            # boolean of whether there's enough points
 
     for transaction in points_list:
-        transaction_list.append(transaction)
         points = transaction["points"]
+        if points == 0:
+            continue
+        transaction_list.append(transaction)
         if remaining > points:
             remaining -= points
         else: # remaining is less than or eq points, so we know that we have enough points to pay
@@ -69,7 +72,7 @@ def give_points(amount, payer, timestamp=datetime.datetime.now()):
     :param timestamp: timestamp of transaction (default is current time)
     :return: Payer and Amount in a dictionary
     '''
-    new_points = {"payer": payer, "points": amount, "timestamp":timestamp}
+    new_points = {"payer": payer, "points": int(amount), "timestamp":timestamp}
     point_collection.insert_one(new_points)
     return [{payer: amount}]
 
@@ -117,6 +120,8 @@ def multitransactions(transactions):
         timestamp = transaction["timestamp"]
         print(create_transaction(amount, payer, timestamp))
 
+
+
 # FLASK
 app = Flask(__name__)
 
@@ -127,20 +132,39 @@ def json_response(resp, status_code):
         mimetype='application/json'
     )
 
+def amount_val_err():
+    return json_response({"error": "Amount needs to be a number"}, 400)
+
 @app.route('/api/give_points')
 def give_points_route():
-    amount = request.args.get('amount')
-    payer = request.args.get('payer')
-    return json_response(give_points(amount, payer), 200)
+    try:
+        amount = request.args.get('amount')
+        payer = request.args.get('payer')
+        err = []
+        if amount == None:
+            err.append("Amount is missing")
+        if payer == None:
+            err.append("Payer is missing")
+        if len(err) != 0:
+            return json_response({"error": err}, 400)
+        return json_response(give_points(amount, payer), 200)
+    except ValueError:
+        return amount_val_err
 
 @app.route('/api/spend_points')
 def spend_points_route():
-    amount = request.args.get('amount')
-    status_code = 200
-    resp, err = spend_points(amount)
-    if err != None:
-        status_code = 400
-    return json_response(resp, status_code)
+    try:
+        amount = request.args.get('amount')
+        if amount == None:
+            return json_response({"error": "Missing amount"}, 400)
+        status_code = 200
+        resp, err = spend_points(amount)
+        if err != None:
+            status_code = 400
+        print(resp, err)
+        return json_response(resp, status_code)
+    except ValueError:
+        return amount_val_err()
 
 @app.route('/api/balance')
 def balance_route():
@@ -157,7 +181,7 @@ if __name__ == "__main__":
     multitransactions(transaction_history)
     print(spend_points(5000))
     print(balance())
-
+    app.run(debug=debug_mode)
     # test_cases = [[300, "unknown_user"], [999900, "lol"],[99999], [5500],]
     # for test in test_cases:
     #     amount = test[0]
