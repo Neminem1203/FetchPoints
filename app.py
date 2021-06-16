@@ -1,13 +1,16 @@
 import pymongo
 import datetime
+from flask import Flask, request, json
+import requests
 
-reset_db = True
+# MONGODB
+reset_db = True                     # development purposes ONLY
 uri = "mongodb+srv://admin:7kKFyf3teMtazG8@testcluster.jsoah.mongodb.net/myFirstDatabase?retryWrites=true&w=majority"
 cluster = pymongo.MongoClient(uri)
 db = cluster["Fetch"]
 # reset database
 if reset_db:
-    db["points"].drop()
+    db["points"].drop()             # development purposes ONLY
 point_collection = db["points"]
 
 def chronological_points_list(query=None):
@@ -49,13 +52,14 @@ def spend_points(amount, payer=None):
         new_points = transaction_list[-1]["points"] - remaining
         point_collection.update_one({"_id": last_id}, {"$set": {"points": new_points}}, upsert=True)
         return_list.append({last_payer: remaining * -1})
-        # print("Paid for with", return_list)
-        return return_list
+        err = {"error": None}
     else:
         end_str = ""
         if payer:
             end_str = " from " + payer
-        return [{"error": "Not Enough Points. Missing "+ str(remaining)+ " points" + end_str}]
+        return_list = None
+        err = {"error": "Not Enough Points. Missing "+ str(remaining)+ " points" + end_str}
+    return [return_list, err]
 
 def give_points(amount, payer, timestamp=datetime.datetime.now()):
     '''
@@ -85,6 +89,7 @@ def balance():
             payer_points[payer] += amount
     return payer_points
 
+# DEVELOPER PURPOSES
 def create_transaction(amount, payer, timestamp):
     '''
     processes transaction between payer and user
@@ -112,6 +117,34 @@ def multitransactions(transactions):
         timestamp = transaction["timestamp"]
         print(create_transaction(amount, payer, timestamp))
 
+# FLASK
+app = Flask(__name__)
+
+def json_response(resp, status_code):
+    return app.response_class(
+        response=json.dumps(resp),
+        status=status_code,
+        mimetype='application/json'
+    )
+
+@app.route('/api/give_points')
+def give_points_route():
+    amount = request.args.get('amount')
+    payer = request.args.get('payer')
+    return json_response(give_points(amount, payer), 200)
+
+@app.route('/api/spend_points')
+def spend_points_route():
+    amount = request.args.get('amount')
+    status_code = 200
+    resp, err = spend_points(amount)
+    if err != None:
+        status_code = 400
+    return json_response(resp, status_code)
+
+@app.route('/api/balance')
+def balance_route():
+    return json_response(balance(), 200)
 
 if __name__ == "__main__":
     transaction_history = [
