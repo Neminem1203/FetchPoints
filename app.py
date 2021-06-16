@@ -4,15 +4,26 @@ from flask import Flask, request, json
 import requests
 
 debug_mode = True
+PORT = 5000
 # MONGODB
-reset_db = True                     # development purposes ONLY
 uri = "mongodb+srv://admin:7kKFyf3teMtazG8@testcluster.jsoah.mongodb.net/myFirstDatabase?retryWrites=true&w=majority"
 cluster = pymongo.MongoClient(uri)
 db = cluster["Fetch"]
-# reset database
-if reset_db:
-    db["points"].drop()             # development purposes ONLY
 point_collection = db["points"]
+
+def reset_db():
+    db["points"].drop()
+    global point_collection
+    point_collection = db["points"]
+    # SEED
+    transaction_history = [
+        {"payer": "DANNON", "points": 1000, "timestamp": "2020-11-02T14:00:00Z", },
+        {"payer": "UNILEVER", "points": 200, "timestamp": "2020-10-31T11:00:00Z", },
+        {"payer": "DANNON", "points": -200, "timestamp": "2020-10-31T15:00:00Z", },
+        {"payer": "MILLER COORS", "points": 10000, "timestamp": "2020-11-01T14:00:00Z", },
+        {"payer": "DANNON", "points": 300, "timestamp": "2020-10-31T10:00:00Z", },
+    ]
+    multitransactions(transaction_history)
 
 def chronological_points_list(query=None):
     return point_collection.find(query).sort("timestamp")
@@ -118,8 +129,8 @@ def multitransactions(transactions):
         amount = transaction["points"]
         payer = transaction["payer"]
         timestamp = transaction["timestamp"]
-        print(create_transaction(amount, payer, timestamp))
-
+        resp = create_transaction(amount, payer, timestamp)
+        # print("Transaction: ",resp)
 
 
 # FLASK
@@ -132,14 +143,19 @@ def json_response(resp, status_code):
         mimetype='application/json'
     )
 
-def amount_val_err():
-    return json_response({"error": "Amount needs to be a number"}, 400)
+AMT_VAL_ERR = json_response({"error": "Amount needs to be a number"}, 400)
+UNKWN_ERR = json_response({"error": "Unknown error occured"}, 400)
 
-@app.route('/api/give_points')
+SPEND_ROUTE = "/api/spend_points"
+GIVE_ROUTE = "/api/give_points"
+BAL_ROUTE = "/api/balance"
+
+@app.route(GIVE_ROUTE)
 def give_points_route():
     try:
         amount = request.args.get('amount')
         payer = request.args.get('payer')
+
         err = []
         if amount == None:
             err.append("Amount is missing")
@@ -147,11 +163,14 @@ def give_points_route():
             err.append("Payer is missing")
         if len(err) != 0:
             return json_response({"error": err}, 400)
+
         return json_response(give_points(amount, payer), 200)
     except ValueError:
-        return amount_val_err
+        return AMT_VAL_ERR
+    except:
+        return UNKWN_ERR
 
-@app.route('/api/spend_points')
+@app.route(SPEND_ROUTE)
 def spend_points_route():
     try:
         amount = request.args.get('amount')
@@ -159,34 +178,22 @@ def spend_points_route():
             return json_response({"error": "Missing amount"}, 400)
         status_code = 200
         resp, err = spend_points(amount)
-        if err != None:
-            status_code = 400
-        print(resp, err)
+        if err["error"] != None:
+            return json_response(err, 400)
         return json_response(resp, status_code)
     except ValueError:
-        return amount_val_err()
+        return AMT_VAL_ERR
+    except:
+        return UNKWN_ERR
+    return UNKNWN_ERR
 
-@app.route('/api/balance')
+@app.route(BAL_ROUTE)
 def balance_route():
     return json_response(balance(), 200)
 
+
+
+
 if __name__ == "__main__":
-    transaction_history = [
-        {"payer": "DANNON", "points": 1000, "timestamp": "2020-11-02T14:00:00Z", },
-        {"payer": "UNILEVER", "points": 200, "timestamp": "2020-10-31T11:00:00Z", },
-        {"payer": "DANNON", "points": -200, "timestamp": "2020-10-31T15:00:00Z", },
-        {"payer": "MILLER COORS", "points": 10000, "timestamp": "2020-11-01T14:00:00Z", },
-        {"payer": "DANNON", "points": 300, "timestamp": "2020-10-31T10:00:00Z", },
-    ]
-    multitransactions(transaction_history)
-    print(spend_points(5000))
-    print(balance())
-    app.run(debug=debug_mode)
-    # test_cases = [[300, "unknown_user"], [999900, "lol"],[99999], [5500],]
-    # for test in test_cases:
-    #     amount = test[0]
-    #     user = None
-    #     if len(test) == 2:
-    #         user = test[1]
-    #     print(amount, user)
-    #     print(spend_points(amount, user))
+    reset_db()
+    app.run(port=PORT, debug=debug_mode)
