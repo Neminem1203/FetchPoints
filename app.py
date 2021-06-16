@@ -4,12 +4,13 @@ import datetime
 uri = "mongodb+srv://admin:7kKFyf3teMtazG8@testcluster.jsoah.mongodb.net/myFirstDatabase?retryWrites=true&w=majority"
 cluster = pymongo.MongoClient(uri)
 db = cluster["Fetch"]
+db["points"].drop()
 point_collection = db["points"]
 
 def chronological_points_list(query=None):
     return point_collection.find(query).sort("timestamp")
 
-def use_points(amount, payer=None):
+def spend_points(amount, payer=None):
     '''
     attempt to use amount of points
     :param amount: amount of points that are trying to be spent
@@ -48,7 +49,10 @@ def use_points(amount, payer=None):
         # print("Paid for with", return_list)
         return return_list
     else:
-        return [{"error": "Not Enough Points. Missing "+ str(remaining)+ " points"}]
+        end_str = ""
+        if payer:
+            end_str = " from " + payer
+        return [{"error": "Not Enough Points. Missing "+ str(remaining)+ " points" + end_str}]
 
 def give_points(amount, payer, timestamp=datetime.datetime.now()):
     '''
@@ -61,7 +65,7 @@ def give_points(amount, payer, timestamp=datetime.datetime.now()):
     new_points = {"payer": payer, "points": amount, "timestamp":timestamp}
     point_collection.insert_one(new_points)
 
-def get_points():
+def balance():
     '''
     get the points given by payers
     :return: dictionary of payers and points
@@ -77,7 +81,7 @@ def get_points():
             payer_points[payer] += amount
     return payer_points
 
-def transaction(amount, payer, timestamp):
+def create_transaction(amount, payer, timestamp):
     '''
     processes transaction between payer and user
     :param amount: amount of points
@@ -85,10 +89,10 @@ def transaction(amount, payer, timestamp):
     :param timestamp: timestamp of the transaction
     :return: None
     '''
-    if amount > 0:
-        give_points(amount,payer, timestamp)
+    if amount >= 0:
+        return give_points(amount,payer, timestamp)
     else:
-        use_points(amount, payer)
+        return spend_points(-1*amount, payer)
 
 def multitransactions(transactions):
     '''
@@ -99,11 +103,10 @@ def multitransactions(transactions):
     # sort based on the timestamp
     transactions.sort(key=lambda x: x["timestamp"])
     for transaction in transactions:
-        print(transaction)
         amount = transaction["points"]
         payer = transaction["payer"]
         timestamp = transaction["timestamp"]
-        # transaction(amount, payer, timestamp)
+        print(create_transaction(amount, payer, timestamp))
 
 
 if __name__ == "__main__":
@@ -114,14 +117,15 @@ if __name__ == "__main__":
         {"payer": "MILLER COORS", "points": 10000, "timestamp": "2020-11-01T14:00:00Z", },
         {"payer": "DANNON", "points": 300, "timestamp": "2020-10-31T10:00:00Z", },
     ]
-    # multitransactions(transaction_history)
-
-    # print(get_points())
-    test_cases = [[300, "unknown_user"], [999900, "lol"], [5500]]
-    for test in test_cases:
-        amount = test[0]
-        user = None
-        if len(test) == 2:
-            user = test[1]
-        print(amount, user)
-        print(use_points(amount, user))
+    multitransactions(transaction_history)
+    print(spend_points(5000))
+    print(balance())
+    
+    # test_cases = [[300, "unknown_user"], [999900, "lol"],[99999], [5500],]
+    # for test in test_cases:
+    #     amount = test[0]
+    #     user = None
+    #     if len(test) == 2:
+    #         user = test[1]
+    #     print(amount, user)
+    #     print(spend_points(amount, user))
