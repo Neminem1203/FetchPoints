@@ -47,7 +47,7 @@ Run app.py to start the server up.
 
 ## Testing
 
-To run the test cases, you have to run the app.py first then run the test.py. 
+To run the test cases, you have to run the app.py first then run the test.py. You may be required to install `importlib` and `requests`. If you don't have it, use `pip install importlib requests`.
 
 `WARNING`: Testing resets the database so only do this during development.
 
