@@ -29,7 +29,9 @@ pip install pymongo Flask
 ```
 
 ## Usage
+
 Run app.py to start the server up.
+
 | Route              | Required                     |
 | ------------------ | ---------------------------- |
 |`/api/spend_points` | `int` Amount                 |
@@ -37,12 +39,16 @@ Run app.py to start the server up.
 |`/api/balance`      | `None`                       |
 
 `api/spend_points` - Spends points based on amount given. 
+
 `api/give_points` - Get points from payer based on amount
+
 `api/balance` - Returns the amount of points from each payer
 
 
 ## Testing
+
 To run the test cases, you have to run the app.py first then run the test.py. 
+
 `WARNING`: Testing resets the database so only do this during development.
 
 [//]: # (These are reference links used in the body of this note and get stripped out when the markdown processor does its job. There is no need to format nicely because it shouldn't be seen. Thanks SO - http://stackoverflow.com/questions/4823468/store-comments-in-markdown-syntax)
