@@ -1,10 +1,13 @@
 import pymongo
 import datetime
 
+reset_db = True
 uri = "mongodb+srv://admin:7kKFyf3teMtazG8@testcluster.jsoah.mongodb.net/myFirstDatabase?retryWrites=true&w=majority"
 cluster = pymongo.MongoClient(uri)
 db = cluster["Fetch"]
-db["points"].drop()
+# reset database
+if reset_db:
+    db["points"].drop()
 point_collection = db["points"]
 
 def chronological_points_list(query=None):
@@ -60,10 +63,11 @@ def give_points(amount, payer, timestamp=datetime.datetime.now()):
     :param amount: amount of points
     :param payer: person who paid you points
     :param timestamp: timestamp of transaction (default is current time)
-    :return: None
+    :return: Payer and Amount in a dictionary
     '''
     new_points = {"payer": payer, "points": amount, "timestamp":timestamp}
     point_collection.insert_one(new_points)
+    return [{payer: amount}]
 
 def balance():
     '''
@@ -120,7 +124,7 @@ if __name__ == "__main__":
     multitransactions(transaction_history)
     print(spend_points(5000))
     print(balance())
-    
+
     # test_cases = [[300, "unknown_user"], [999900, "lol"],[99999], [5500],]
     # for test in test_cases:
     #     amount = test[0]
